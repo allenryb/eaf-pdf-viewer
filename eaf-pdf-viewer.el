@@ -591,11 +591,26 @@ This function works best if paired with a fuzzy search package."
          (line-num (progn (set-buffer tex-buffer) (line-number-at-pos)))
          (opened-buffer (eaf-pdf--find-buffer pdf-url))
          (synctex-info (eaf-pdf--get-synctex-info tex-file line-num pdf-url)))
-    (if (not opened-buffer)
-        (eaf-open pdf-url "pdf-viewer" (format "synctex_info=%s" synctex-info))
-      (pop-to-buffer opened-buffer)
-      (eaf-call-sync "execute_function_with_args" eaf--buffer-id
-                     "jump_to_page_synctex" (format "%s" synctex-info)))))
+    (when (one-window-p)
+      ;; If the window is sole, then split window
+      ;; Original `split-window-sensibly' conflict with `visual-fill-column'
+      (if (fboundp 'visual-fill-column-split-window-sensibly)
+	  (visual-fill-column-split-window-sensibly)
+	(split-window-sensibly)))
+    ;; always display PDF in other buffer by `TeX-view'
+    (with-current-buffer tex-buffer
+      (if (not opened-buffer)
+          (progn
+	    ;; `eaf-open' shows PDF in currrent buffer
+	    ;; Hence we have to swtich to other window
+	    (other-window 1)
+	    (eaf-open pdf-url "pdf-viewer" (format "synctex_info=%s" synctex-info))
+	    ;; `eaf-open' break `with-current-buffer' and can't go back to source buffer
+	    (other-window 1))
+	(with-selected-window
+	    (display-buffer opened-buffer)
+	  (eaf-call-sync "execute_function_with_args" eaf--buffer-id
+			 "jump_to_page_synctex" (format "%s" synctex-info)))))))
 
 (defun eaf-pdf-synctex-backward-edit (pdf-file page-num x y)
   "Edit the Tex file corresponding to (`page-num', `x' , `y') of the `pdf-file'."
